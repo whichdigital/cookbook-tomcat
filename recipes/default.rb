@@ -2,7 +2,7 @@
 # Cookbook Name:: tomcat
 # Recipe:: default
 #
-# Copyright 2010, Opscode, Inc.
+# Copyright 2010-2015, Opscode, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,12 +31,31 @@ end
 node['tomcat']['packages'].each do |pkg|
   package pkg do
     action :install
+    notifies :create, 'ruby_block[fix startup script:: https://bugzilla.redhat.com/show_bug.cgi?id=1104704]', :immediately
   end
+
+  ruby_block 'fix startup script:: https://bugzilla.redhat.com/show_bug.cgi?id=1104704' do
+    block do
+      fe = Chef::Util::FileEdit.new("/usr/sbin/tomcat")
+      fe.search_file_replace_line(/TOMCAT_CFG=\"\/etc\/tomcat\/tomcat.conf\"/,":")
+      fe.search_file_replace_line(/\.\s+\$TOMCAT_CFG/,":")
+      fe.write_file
+    end
+    action :nothing
+    only_if { platform_family?('rhel') && node[:platform_version].to_i < 7 }
+    only_if { `rpm -q tomcat`.chomp =~ /tomcat-7.0.33-3|4.el6.noarch/ }
+  end
+
 end
 
 node['tomcat']['deploy_manager_packages'].each do |pkg|
   package pkg do
     action :install
+  end
+   # Even for the base instance, the OS package may not make this directory
+  directory node['tomcat']['endorsed_dir'] do
+    mode '0755'
+    recursive true
   end
 end
 
@@ -106,6 +125,7 @@ node['tomcat']['instances'].each do |name, attrs|
     base attrs['base']
     tmp_dir attrs['tmp_dir']
     lib_dir attrs['lib_dir']
+    start_service attrs['start_service']
     endorsed_dir attrs['endorsed_dir']
   end
 end

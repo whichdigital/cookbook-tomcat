@@ -4,7 +4,7 @@
 #
 # Author:: Jamie Winsor (<jamie@vialstudios.com>)
 #
-# Copyright 2010-2012, Opscode, Inc.
+# Copyright 2010-2015, Opscode, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,6 +64,14 @@ class Chef
       # @return [Array<String>]
       def roles
         users.map { |item| item['roles'] }.flatten.uniq
+      end
+
+      def default_path(symbol)
+        default_paths[symbol]
+      end
+
+      def default_paths
+        @dir_names ||=  { :config_dir => 'conf', :log_dir => 'logs', :tmp_dir => 'temp', :work_dir => 'work', :context_dir => 'conf/Catalina/localhost',  :webapp_dir => 'webapps' }
       end
 
       private

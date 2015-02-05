@@ -27,10 +27,27 @@ platforms:
 suites:
 - name: tomcat6
   run_list: ["recipe[tomcat]"]
-  excludes: ["centos-7.0"]
   attributes: {}
 
 - name: tomcat7
   run_list: ["recipe[tomcat]"]
   excludes: ["ubuntu-10.04"]
   attributes: {tomcat: {base_version: 7}}
+
+- name: tomcat6-clustered
+  driver:
+    network:
+    - ["forwarded_port", {guest: 8081, host: 8083}]
+    - ["forwarded_port", {guest: 8083, host: 8084}]
+  run_list: ["recipe[java]", "recipe[tomcat_test]"]
+  excludes: ["ubuntu-10.04"]
+  attributes: { "tomcat":{"base_version":6,"run_base_instance":false,"instances":{"razuna":{ "base" : "/ca/web/razuna", "home" : "/ca/web/razuna","webapp_dir":"/ca/web/razuna/webapps", "log_dir" : "/ca/web/razuna/logs", "work_dir" : "/ca/web/razuna/work", "config_dir" : "/ca/web/razuna/conf","port":8081,"shutdown_port":8006}, "pentaho":{ "base" : "/ca/web/pentaho", "webapp_dir":"/ca/web/pentaho/webapps", "log_dir" : "/ca/web/pentaho/logs", "work_dir" : "/ca/web/pentaho/work", "config_dir" : "/ca/web/pentaho/conf","port":8083,"shutdown_port":8007}}},"java":{"install_flavor":"oracle","jdk_version":7,"oracle":{"accept_oracle_download_terms":true}}}
+
+- name: tomcat7-clustered
+  driver:
+    network:
+    - ["forwarded_port", {guest: 8081, host: 8085}]
+    - ["forwarded_port", {guest: 8083, host: 8086}]
+  run_list: ["recipe[java]", "recipe[tomcat_test]"]
+  excludes: ["ubuntu-10.04"]
+  attributes:  {"tomcat":{"base_version":7,"run_base_instance":false,"instances":{"razuna":{ "base" : "/ca/web/razuna", "home" : "/ca/web/razuna","webapp_dir":"/ca/web/razuna/webapps", "log_dir" : "/ca/web/razuna/logs", "work_dir" : "/ca/web/razuna/work", "config_dir" : "/ca/web/razuna/conf","port":8081,"shutdown_port":8006}, "pentaho":{ "base" : "/ca/web/pentaho", "webapp_dir":"/ca/web/pentaho/webapps", "log_dir" : "/ca/web/pentaho/logs", "work_dir" : "/ca/web/pentaho/work", "config_dir" : "/ca/web/pentaho/conf","port":8083,"shutdown_port":8007}}},"java":{"install_flavor":"oracle","jdk_version":7,"oracle":{"accept_oracle_download_terms":true}}}

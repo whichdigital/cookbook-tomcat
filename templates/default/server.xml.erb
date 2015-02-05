@@ -43,6 +43,12 @@
        Documentation at /docs/jndi-resources-howto.html
   -->
   <GlobalNamingResources>
+
+
+  <% if ::File.file?("#{Chef::Config[:file_cache_path]}/#{@instance}_global_naming_resources.xml.erb")%>
+  <%= render "#{Chef::Config[:file_cache_path]}/#{@instance}_global_naming_resources.xml.erb", :local => true %>
+  <% end %>
+
     <!-- Editable user database that can also be used by
          UserDatabaseRealm to authenticate users
     -->

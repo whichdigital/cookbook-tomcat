@@ -20,8 +20,10 @@ attribute :ajp_port,
 attribute :shutdown_port,
   :kind_of => Fixnum,
   :required => true
+attribute :start_service,
+  :kind_of => [ TrueClass, FalseClass ],
+  :default => true
 
-# The rest will inherit from node attributes
 attribute :config_dir,
   :kind_of => String
 attribute :log_dir,

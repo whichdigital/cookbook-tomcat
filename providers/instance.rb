@@ -8,18 +8,18 @@ action :configure do
    :max_threads, :ssl_max_threads, :ssl_cert_file, :ssl_key_file,
    :ssl_chain_files, :keystore_file, :keystore_type, :truststore_file,
    :truststore_type, :certificate_dn, :loglevel, :tomcat_auth, :user,
-   :group, :tmp_dir, :lib_dir, :endorsed_dir].each do |attr|
+  :group].each do |attr|
     if not new_resource.instance_variable_get("@#{attr}")
       new_resource.instance_variable_set("@#{attr}", node['tomcat'][attr])
     end
-  end 
+  end
 
   if new_resource.name == 'base'
     instance = base_instance
 
     # If they weren't set explicitly, set these paths to the default
-    [:base, :home, :config_dir, :log_dir, :work_dir, :context_dir,
-     :webapp_dir].each do |attr|
+    [:base, :home, :config_dir, :log_dir, :tmp_dir, :endorsed_dir, :work_dir, :context_dir,
+    :webapp_dir].each do |attr|
       if not new_resource.instance_variable_get("@#{attr}")
         new_resource.instance_variable_set("@#{attr}", node["tomcat"][attr])
       end
@@ -28,87 +28,72 @@ action :configure do
     # Use a unique name for this instance
     instance = "#{base_instance}-#{new_resource.name}"
 
-    # If they weren't set explicitly, set these paths to the default with
-    # the base instance name replaced with our own
-    [:base, :home, :config_dir, :log_dir, :work_dir, :context_dir,
-     :webapp_dir].each do |attr|
-      if not new_resource.instance_variable_get("@#{attr}") and node["tomcat"][attr]
-        new = node["tomcat"][attr].sub(base_instance, instance)
-        new_resource.instance_variable_set("@#{attr}", new)
-      end
+    # all instances share same base installation
+    new_resource.instance_variable_set("@home", node['tomcat']['home'])
+
+    directory new_resource.base do
+      mode '0755'
+      recursive true
+      owner new_resource.user
+      group new_resource.group
     end
 
-    # Create the directories, since the OS package wouldn't have
-    [:base, :config_dir, :context_dir].each do |attr|
-      directory new_resource.instance_variable_get("@#{attr}") do
-        mode '0755'
-        recursive true
+    Chef::TomcatCookbook.default_paths.each do |attr, default|
+      if not new_resource.instance_variable_get("@#{attr}")
+        new_resource.instance_variable_set("@#{attr}", "#{new_resource.base}/#{default}")
       end
-    end
-    [:log_dir, :work_dir, :webapp_dir].each do |attr|
       directory new_resource.instance_variable_get("@#{attr}") do
         mode '0755'
         recursive true
-        user new_resource.user
+        owner new_resource.user
         group new_resource.group
       end
     end
 
-    # Don't make a separate home, just link to base
-    if new_resource.home != new_resource.base
-      link "#{new_resource.home}" do
-        to "#{new_resource.base}"
+    ['bin', 'lib'].each do |dir|
+      directory "#{new_resource.base}/#{dir}" do
+        owner new_resource.user
+        group new_resource.group
       end
     end
 
-    # config_dir needs symlinks to the files we're not going to create
+    link "#{new_resource.base}/bin/tomcat-juli.jar" do
+      to "#{new_resource.home}/bin/tomcat-juli.jar"
+      owner new_resource.user
+      group new_resource.group
+      mode "0755"
+    end
+
+    # symlink files we aren't going to create, make sure tomcat user can read
     ['catalina.policy', 'catalina.properties', 'context.xml',
-     'tomcat-users.xml', 'web.xml'].each do |file|
+    'tomcat-users.xml', 'web.xml'].each do |file|
+      file "#{node['tomcat']['config_dir']}/#{file}" do
+        mode "0745"
+      end
       link "#{new_resource.config_dir}/#{file}" do
         to "#{node['tomcat']['config_dir']}/#{file}"
+        owner new_resource.user
+        group new_resource.group
       end
     end
-
-    # The base also needs a bunch of to symlinks inside it
-    ['bin', 'lib'].each do |dir|
-      link "#{new_resource.base}/#{dir}" do
-        to "#{node['tomcat']['base']}/#{dir}"
-      end
-    end
-    {'conf' => 'config_dir', 'logs' => 'log_dir', 'temp' => 'tmp_dir',
-     'work' => 'work_dir', 'webapps' => 'webapp_dir'}.each do |name, attr|
-      link "#{new_resource.base}/#{name}" do
-        to new_resource.instance_variable_get("@#{attr}")
-      end
-    end
-
     # Make a copy of the init script for this instance
     if node['init_package'] == 'systemd' and not platform_family?('debian')
       template "/usr/lib/systemd/system/#{instance}.service" do
         source 'tomcat.service.erb'
         variables ({
-          :instance => instance,
-          :user => new_resource.user,
-          :group => new_resource.group
+                     :instance => instance,
+                     :user => new_resource.user,
+                     :group => new_resource.group
         })
         owner 'root'
         group 'root'
         mode '0644'
       end
     else
-      execute "/etc/init.d/#{instance}" do
-        command <<-EOH
-          cp /etc/init.d/#{base_instance} /etc/init.d/#{instance}
-          perl -i -pe 's/#{base_instance}/#{instance}/g' /etc/init.d/#{instance}
-        EOH
+      link "/etc/init.d/#{instance}" do
+        to "/etc/init.d/#{base_instance}"
       end
     end
-  end
-
-  # Even for the base instance, the OS package may not make this directory
-  directory new_resource.endorsed_dir do
-    mode '0755'
-    recursive true
   end
 
   unless new_resource.truststore_file.nil?
@@ -123,14 +108,15 @@ action :configure do
     template "/etc/sysconfig/#{instance}" do
       source 'sysconfig_tomcat6.erb'
       variables ({
-        :user => new_resource.user,
-        :home => new_resource.home,
-        :base => new_resource.base,
-        :java_options => new_resource.java_options,
-        :use_security_manager => new_resource.use_security_manager,
-        :tmp_dir => new_resource.tmp_dir,
-        :catalina_options => new_resource.catalina_options,
-        :endorsed_dir => new_resource.endorsed_dir
+                   :user => new_resource.user,
+                   :home => new_resource.home,
+                   :base => new_resource.base,
+                   :java_options => new_resource.java_options,
+                   :use_security_manager => new_resource.use_security_manager,
+                   :tmp_dir => new_resource.tmp_dir,
+                   :catalina_options => new_resource.catalina_options,
+                   :endorsed_dir => new_resource.endorsed_dir,
+                   :instance => instance
       })
       owner 'root'
       group 'root'
@@ -150,16 +136,17 @@ action :configure do
     template "/etc/default/#{instance}" do
       source 'default_tomcat6.erb'
       variables ({
-        :user => new_resource.user,
-        :group => new_resource.group,
-        :home => new_resource.home,
-        :base => new_resource.base,
-        :java_options => new_resource.java_options,
-        :use_security_manager => new_resource.use_security_manager,
-        :tmp_dir => new_resource.tmp_dir,
-        :authbind => new_resource.authbind,
-        :catalina_options => new_resource.catalina_options,
-        :endorsed_dir => new_resource.endorsed_dir
+                   :user => new_resource.user,
+                   :group => new_resource.group,
+                   :home => new_resource.home,
+                   :base => new_resource.base,
+                   :java_options => new_resource.java_options,
+                   :use_security_manager => new_resource.use_security_manager,
+                   :tmp_dir => new_resource.tmp_dir,
+                   :authbind => new_resource.authbind,
+                   :catalina_options => new_resource.catalina_options,
+                   :endorsed_dir => new_resource.endorsed_dir,
+                   :instance => instance
       })
       owner 'root'
       group 'root'
@@ -170,30 +157,31 @@ action :configure do
 
   template "#{new_resource.config_dir}/server.xml" do
     source 'server.xml.erb'
-      variables ({
-        :port => new_resource.port,
-        :proxy_port => new_resource.proxy_port,
-        :ssl_port => new_resource.ssl_port,
-        :ssl_proxy_port => new_resource.ssl_proxy_port,
-        :ajp_port => new_resource.ajp_port,
-        :shutdown_port => new_resource.shutdown_port,
-        :max_threads => new_resource.max_threads,
-        :ssl_max_threads => new_resource.ssl_max_threads,
-        :keystore_file => new_resource.keystore_file,
-        :keystore_type => new_resource.keystore_type,
-        :tomcat_auth => new_resource.tomcat_auth,
-        :config_dir => new_resource.config_dir,
-      })
-    owner 'root'
-    group 'root'
+    variables ({
+                 :port => new_resource.port,
+                 :proxy_port => new_resource.proxy_port,
+                 :ssl_port => new_resource.ssl_port,
+                 :ssl_proxy_port => new_resource.ssl_proxy_port,
+                 :ajp_port => new_resource.ajp_port,
+                 :shutdown_port => new_resource.shutdown_port,
+                 :max_threads => new_resource.max_threads,
+                 :ssl_max_threads => new_resource.ssl_max_threads,
+                 :keystore_file => new_resource.keystore_file,
+                 :keystore_type => new_resource.keystore_type,
+                 :tomcat_auth => new_resource.tomcat_auth,
+                 :config_dir => new_resource.config_dir,
+                 :instance => instance
+    })
+    owner new_resource.user
+    group new_resource.group
     mode '0644'
     notifies :restart, "service[#{instance}]"
   end
 
   template "#{new_resource.config_dir}/logging.properties" do
     source 'logging.properties.erb'
-    owner 'root'
-    group 'root'
+    owner new_resource.user
+    group new_resource.group
     mode '0644'
     notifies :restart, "service[#{instance}]"
   end
@@ -202,49 +190,64 @@ action :configure do
     execute 'Create Tomcat SSL certificate' do
       group new_resource.group
       command <<-EOH
-        #{node['tomcat']['keytool']} \
-         -genkey \
-         -keystore "#{new_resource.config_dir}/#{new_resource.keystore_file}" \
-         -storepass "#{node['tomcat']['keystore_password']}" \
-         -keypass "#{node['tomcat']['keystore_password']}" \
-         -dname "#{node['tomcat']['certificate_dn']}"
+      #{node['tomcat']['keytool']} \
+      -genkey \
+        -keystore "#{new_resource.config_dir}/#{new_resource.keystore_file}" \
+        -storepass "#{node['tomcat']['keystore_password']}" \
+        -keypass "#{node['tomcat']['keystore_password']}" \
+        -dname "#{node['tomcat']['certificate_dn']}"
       EOH
       umask 0007
       creates "#{new_resource.config_dir}/#{new_resource.keystore_file}"
       action :run
       notifies :restart, "service[#{instance}]"
     end
+
+    file "#{new_resource.config_dir}/#{new_resource.keystore_file}" do
+      owner new_resource.user
+      group new_resource.group
+      mode "0600"
+    end
+
   else
     script "create_keystore-#{instance}" do
       interpreter 'bash'
       action :nothing
       cwd new_resource.config_dir
       code <<-EOH
-        cat #{new_resource.ssl_chain_files.join(' ')} > cacerts.pem
-        openssl pkcs12 -export \
-         -inkey #{new_resource.ssl_key_file} \
-         -in #{new_resource.ssl_cert_file} \
-         -chain \
-         -CAfile cacerts.pem \
-         -password pass:#{node['tomcat']['keystore_password']} \
-         -out #{new_resource.keystore_file}
+      cat #{new_resource.ssl_chain_files.join(' ')} > cacerts.pem
+      openssl pkcs12 -export \
+        -inkey #{new_resource.ssl_key_file} \
+        -in #{new_resource.ssl_cert_file} \
+        -chain \
+        -CAfile cacerts.pem \
+        -password pass:#{node['tomcat']['keystore_password']} \
+        -out #{new_resource.keystore_file}
       EOH
+      user new_resource.user
+      group new_resource.group
       notifies :restart, "service[tomcat]"
     end
 
     cookbook_file "#{new_resource.config_dir}/#{new_resource.ssl_cert_file}" do
       mode '0644'
+      owner new_resource.user
+      group new_resource.group
       notifies :run, "script[create_keystore-#{instance}]"
     end
 
     cookbook_file "#{new_resource.config_dir}/#{new_resource.ssl_key_file}" do
       mode '0644'
+      owner new_resource.user
+      group new_resource.group
       notifies :run, "script[create_keystore-#{instance}]"
     end
 
     new_resource.ssl_chain_files.each do |cert|
       cookbook_file "#{new_resource.config_dir}/#{cert}" do
         mode '0644'
+        owner new_resource.user
+        group new_resource.group
         notifies :run, "script[create_keystore-#{instance}]"
       end
     end
@@ -253,6 +256,8 @@ action :configure do
   unless new_resource.truststore_file.nil?
     cookbook_file "#{new_resource.config_dir}/#{new_resource.truststore_file}" do
       mode '0644'
+      owner new_resource.user
+      group new_resource.group
     end
   end
 
@@ -272,6 +277,7 @@ action :configure do
       service_name "#{instance}"
     end
     action [:start, :enable]
+    only_if { new_resource.start_service }
     notifies :run, "execute[wait for #{instance}]", :immediately
     retries 4
     retry_delay 30
