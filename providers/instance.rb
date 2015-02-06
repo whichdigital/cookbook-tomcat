@@ -276,8 +276,11 @@ action :configure do
     else
       service_name "#{instance}"
     end
-    action [:start, :enable]
-    only_if { new_resource.start_service }
+    if new_resource.start_service
+      action [:enable, :start]
+    else
+      action [:enable]
+    end
     notifies :run, "execute[wait for #{instance}]", :immediately
     retries 4
     retry_delay 30
