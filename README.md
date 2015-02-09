@@ -28,6 +28,7 @@ Attributes
 * `node["tomcat"]["use_security_manager"]` - Run Tomcat under the Java Security Manager, default `false`.
 * `node["tomcat"]["loglevel"]` - Level for default Tomcat's logs, default `INFO`.
 * `node["tomcat"]["deploy_manager_apps"]` - whether to deploy manager apps, default `true`.
+* `node["tomcat"]["start_service"]` - whether to start the tomcat instance, default `true`.
 * `node["tomcat"]["authbind"]` - whether to bind tomcat on lower port numbers, default `no`.
 * `node["tomcat"]["max_threads"]` - maximum number of threads in the connector pool.
 * `node["tomcat"]["tomcat_auth"]` -
@@ -79,7 +80,7 @@ Running Multiple Instances
 --------------------------
 To run multiple instances of Tomcat, populate the `instances` attribute, which is a dictionary of instance name => array of attributes.  Most of the same attributes that can be used globally for the tomcat cookbook can also be set per-instance - see resources/instance.rb for details.
 
-If they are not set for a particular instance, the `base`, `home`, `config_dir`, `log_dir`, `work_dir`, `context_dir`, and `webapp_dir` attributes are created by modifying the global values to use the instance name.  For example, under Tomcat 7, with `home` /usr/share/tomcat7, `home` for instance "instance1" would be set to /usr/share/tomcat7-instance1.  The port attributes - `port`, `proxy_port`, `ssl_port`, `ssl_proxy_port`, `ajp_port`, and `shutdown_port` - are not inherited and must be set per-instance.  Other attributes that are not set are inherited unmodified from the global attributes.  Each instance must define `shutdown_port`, and at least one of `port`, `ssl_port` or `ajp_port`.
+If they are not set for a particular instance, the `base`, `home`, `config_dir`, `log_dir`, `work_dir`, `context_dir`, and `webapp_dir` attributes are created by modifying the global values to use the instance name.  For example, under Tomcat 7, with `home` /usr/share/tomcat7, `home` for instance "instance1" would be set to /usr/share/tomcat7-instance1.  It is possible to define a custom instance `server.xml` template. This is done by setting `server_xml_template`, `server_xml_cookbook`, `server_xml_variables` attributes for the instance as described below. The port attributes - `port`, `proxy_port`, `ssl_port`, `ssl_proxy_port`, `ajp_port`, and `shutdown_port` - are not inherited and must be set per-instance.  Other attributes that are not set are inherited unmodified from the global attributes.  Each instance must define `shutdown_port`, and at least one of `port`, `ssl_port` or `ajp_port`.
 
 If you only want to run specific instances and not the "base" tomcat instances, you can set `run_base_instance` to `false`.
 
@@ -92,8 +93,13 @@ Here is an example partial role:
     "run_base_instance": false,
     "instances": {
       "instance1": {
-        "port": 8081,
-        "shutdown_port": 8006
+        "server_xml_template" : "server.xml.erb",
+        "server_xml_cookbook" : "acme_tomcat",
+        "server_xml_variables" : {
+          "port": 8081,
+          "shutdown_port": 8006
+          }
+
       },
       "lookup": {
         "port": 8082,
