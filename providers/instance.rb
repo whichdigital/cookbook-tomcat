@@ -161,7 +161,8 @@ action :configure do
     end
   end
 
-  template "#{new_resource.config_dir}/server.xml" do
+  template "default #{new_resource.config_dir}/server.xml" do
+    path "#{new_resource.config_dir}/server.xml"
     source 'server.xml.erb'
     variables ({
                  :ajp_port => new_resource.ajp_port,
@@ -182,6 +183,19 @@ action :configure do
     owner new_resource.user
     group new_resource.group
     mode '0644'
+    not_if { new_resource.server_xml_template }
+    notifies :restart, "service[#{instance}]"
+  end
+
+  template "custom #{new_resource.config_dir}/server.xml" do
+    path "#{new_resource.config_dir}/server.xml"
+    source 'server.xml.erb'
+    variables new_resource.server_xml_variables
+    cookbook new_resource.server_xml_cookbook
+    owner new_resource.user
+    group new_resource.group
+    mode '0644'
+    only_if { new_resource.server_xml_template }
     notifies :restart, "service[#{instance}]"
   end
 

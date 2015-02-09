@@ -23,6 +23,15 @@ attribute :shutdown_port,
 attribute :start_service,
   :kind_of => [ TrueClass, FalseClass ],
   :default => true
+attribute :server_xml_template,
+  :kind_of => String,
+  :default => nil
+attribute :server_xml_cookbook,
+  :kind_of => String,
+  :default => nil
+attribute :server_xml_variables,
+  :kind_of => Hash,
+  :default => ({})
 
 attribute :config_dir,
   :kind_of => String
