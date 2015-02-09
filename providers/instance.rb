@@ -108,20 +108,26 @@ action :configure do
     template "/etc/sysconfig/#{instance}" do
       source 'sysconfig_tomcat6.erb'
       variables ({
-                   :user => new_resource.user,
-                   :home => new_resource.home,
                    :base => new_resource.base,
-                   :java_options => new_resource.java_options,
-                   :use_security_manager => new_resource.use_security_manager,
-                   :tmp_dir => new_resource.tmp_dir,
                    :catalina_options => new_resource.catalina_options,
                    :endorsed_dir => new_resource.endorsed_dir,
-                   :instance => instance
+                   :home => new_resource.home,
+                   :instance => instance,
+                   :java_options => new_resource.java_options,
+                   :tmp_dir => new_resource.tmp_dir,
+                   :use_security_manager => new_resource.use_security_manager,
+                   :user => new_resource.user
       })
       owner 'root'
       group 'root'
       mode '0644'
       notifies :restart, "service[#{instance}]"
+    end
+    file "/var/run/#{instance}.pid" do
+      owner new_resource.user
+      group new_resource.group
+      mode '0644'
+      action :create_if_missing
     end
   when 'smartos'
     # SmartOS doesn't support multiple instances
@@ -136,17 +142,17 @@ action :configure do
     template "/etc/default/#{instance}" do
       source 'default_tomcat6.erb'
       variables ({
-                   :user => new_resource.user,
-                   :group => new_resource.group,
-                   :home => new_resource.home,
-                   :base => new_resource.base,
-                   :java_options => new_resource.java_options,
-                   :use_security_manager => new_resource.use_security_manager,
-                   :tmp_dir => new_resource.tmp_dir,
                    :authbind => new_resource.authbind,
+                   :base => new_resource.base,
                    :catalina_options => new_resource.catalina_options,
                    :endorsed_dir => new_resource.endorsed_dir,
-                   :instance => instance
+                   :group => new_resource.group,
+                   :home => new_resource.home,
+                   :instance => instance,
+                   :java_options => new_resource.java_options,
+                   :tmp_dir => new_resource.tmp_dir,
+                   :use_security_manager => new_resource.use_security_manager,
+                   :user => new_resource.user
       })
       owner 'root'
       group 'root'
@@ -158,19 +164,20 @@ action :configure do
   template "#{new_resource.config_dir}/server.xml" do
     source 'server.xml.erb'
     variables ({
-                 :port => new_resource.port,
-                 :proxy_port => new_resource.proxy_port,
-                 :ssl_port => new_resource.ssl_port,
-                 :ssl_proxy_port => new_resource.ssl_proxy_port,
                  :ajp_port => new_resource.ajp_port,
-                 :shutdown_port => new_resource.shutdown_port,
-                 :max_threads => new_resource.max_threads,
-                 :ssl_max_threads => new_resource.ssl_max_threads,
+                 :config_dir => new_resource.config_dir,
+                 :instance => instance,
                  :keystore_file => new_resource.keystore_file,
                  :keystore_type => new_resource.keystore_type,
+                 :max_threads => new_resource.max_threads,
+                 :port => new_resource.port,
+                 :proxy_port => new_resource.proxy_port,
+                 :shutdown_port => new_resource.shutdown_port,
+                 :ssl_max_threads => new_resource.ssl_max_threads,
+                 :ssl_port => new_resource.ssl_port,
+                 :ssl_proxy_port => new_resource.ssl_proxy_port,
                  :tomcat_auth => new_resource.tomcat_auth,
-                 :config_dir => new_resource.config_dir,
-                 :instance => instance
+                 :webapp_dir => new_resource.webapp_dir
     })
     owner new_resource.user
     group new_resource.group
@@ -226,7 +233,7 @@ action :configure do
       EOH
       user new_resource.user
       group new_resource.group
-      notifies :restart, "service[tomcat]"
+      notifies :restart, "service[#{instance}]"
     end
 
     cookbook_file "#{new_resource.config_dir}/#{new_resource.ssl_cert_file}" do
@@ -276,11 +283,8 @@ action :configure do
     else
       service_name "#{instance}"
     end
-    if new_resource.start_service
-      action [:enable, :start]
-    else
-      action [:enable]
-    end
+    action [:enable, :start]
+    only_if { new_resource.start_service }
     notifies :run, "execute[wait for #{instance}]", :immediately
     retries 4
     retry_delay 30
