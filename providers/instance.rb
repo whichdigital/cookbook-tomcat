@@ -121,7 +121,9 @@ action :configure do
       owner 'root'
       group 'root'
       mode '0644'
-      notifies :restart, "service[#{instance}]"
+      if new_resource.start_service
+        notifies :restart, "service[#{instance}]"
+      end
     end
     file "/var/run/#{instance}.pid" do
       owner new_resource.user
@@ -136,7 +138,9 @@ action :configure do
       owner 'root'
       group 'root'
       mode '0644'
-      notifies :restart, "service[#{instance}]"
+      if new_resource.start_service
+        notifies :restart, "service[#{instance}]"
+      end
     end
   else
     template "/etc/default/#{instance}" do
@@ -157,7 +161,9 @@ action :configure do
       owner 'root'
       group 'root'
       mode '0644'
-      notifies :restart, "service[#{instance}]"
+      if new_resource.start_service
+        notifies :restart, "service[#{instance}]"
+      end
     end
   end
 
@@ -184,7 +190,9 @@ action :configure do
     group new_resource.group
     mode '0644'
     not_if { new_resource.server_xml_template }
-    notifies :restart, "service[#{instance}]"
+    if new_resource.start_service
+      notifies :restart, "service[#{instance}]"
+    end
   end
 
   template "custom #{new_resource.config_dir}/server.xml" do
@@ -196,7 +204,9 @@ action :configure do
     group new_resource.group
     mode '0644'
     only_if { new_resource.server_xml_template }
-    notifies :restart, "service[#{instance}]"
+    if new_resource.start_service
+      notifies :restart, "service[#{instance}]"
+    end
   end
 
   template "#{new_resource.config_dir}/logging.properties" do
@@ -204,7 +214,9 @@ action :configure do
     owner new_resource.user
     group new_resource.group
     mode '0644'
-    notifies :restart, "service[#{instance}]"
+    if new_resource.start_service
+      notifies :restart, "service[#{instance}]"
+    end
   end
 
   if new_resource.ssl_cert_file.nil?
@@ -221,7 +233,9 @@ action :configure do
       umask 0007
       creates "#{new_resource.config_dir}/#{new_resource.keystore_file}"
       action :run
-      notifies :restart, "service[#{instance}]"
+      if new_resource.start_service
+        notifies :restart, "service[#{instance}]"
+      end
     end
 
     file "#{new_resource.config_dir}/#{new_resource.keystore_file}" do
@@ -247,7 +261,9 @@ action :configure do
       EOH
       user new_resource.user
       group new_resource.group
-      notifies :restart, "service[#{instance}]"
+      if new_resource.start_service
+        notifies :restart, "service[#{instance}]"
+      end
     end
 
     cookbook_file "#{new_resource.config_dir}/#{new_resource.ssl_cert_file}" do
@@ -297,8 +313,11 @@ action :configure do
     else
       service_name "#{instance}"
     end
-    action [:enable, :start]
-    only_if { new_resource.start_service }
+    if new_resource.start_service
+      action [:enable, :start]
+    else
+      action :enable
+    end
     notifies :run, "execute[wait for #{instance}]", :immediately
     retries 4
     retry_delay 30
