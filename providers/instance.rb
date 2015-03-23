@@ -315,10 +315,10 @@ action :configure do
     end
     if new_resource.start_service
       action [:enable, :start]
+      notifies :run, "execute[wait for #{instance}]", :immediately
     else
       action :enable
     end
-    notifies :run, "execute[wait for #{instance}]", :immediately
     retries 4
     retry_delay 30
   end
