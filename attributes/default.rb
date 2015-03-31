@@ -2,7 +2,7 @@
 # Cookbook Name:: tomcat
 # Attributes:: default
 #
-# Copyright 2010, Opscode, Inc.
+# Copyright 2010-2015, Opscode, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,7 +44,6 @@ default['tomcat']['keystore_type'] = 'jks'
 default['tomcat']['truststore_file'] = nil
 default['tomcat']['truststore_type'] = 'jks'
 default['tomcat']['certificate_dn'] = 'cn=localhost'
-default['tomcat']['loglevel'] = 'INFO'
 default['tomcat']['tomcat_auth'] = 'true'
 default['tomcat']['instances'] = {}
 default['tomcat']['run_base_instance'] = true
